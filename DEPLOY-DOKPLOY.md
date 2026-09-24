@@ -37,8 +37,13 @@ Configuración (una sola vez):
 
 ## Dokploy
 
-1. Proyecto → **Compose** → proveedor GitHub, repo `pabloluna3596afk/hermes-agent`, rama `main`,
-   compose path `./docker-compose.dokploy.yml`. Activar auto-deploy.
+El servidor (arm64) **no compila**: `.github/workflows/build-image.yml` construye la imagen en
+un runner ARM de GitHub y la publica en `ghcr.io/pabloluna3596afk/hermes-agent:latest`.
+Tras el primer build: GitHub → Packages → `hermes-agent` → Package settings → visibilidad **Public**
+(si no, Dokploy necesita credenciales de registry).
+
+1. Proyecto `main` → compose **raw** `hermes` con el contenido de `docker-compose.dokploy.yml`
+   (igual que chatwoot).
 2. Environment:
 
    ```
@@ -48,7 +53,8 @@ Configuración (una sola vez):
    ```
 
 3. Domains → servicio `hermes`, puerto `9119`, HTTPS con Let's Encrypt.
-4. Deploy. El build es pesado (Python + Node + web): el servidor necesita ~4 GB de RAM y ~15 GB de disco libres.
+4. Deploy. Para redeploy automático tras cada build, copiar el Webhook URL del compose en Dokploy
+   al secreto `DOKPLOY_WEBHOOK_URL` del repo.
 5. Primera configuración (modelo, API keys, Telegram, etc.): desde el dashboard, o por terminal
    del contenedor en Dokploy con `hermes setup`.
 6. Si el login del dashboard falla detrás de Traefik, editar `/opt/data/config.yaml` en el volumen:

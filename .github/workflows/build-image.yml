@@ -1,0 +1,69 @@
+# Fork-only: builds the Docker image on GitHub (our Dokploy server is arm64 and
+# must not build it) and pushes it to GHCR. Dokploy only pulls:
+#   ghcr.io/pabloluna3596afk/hermes-agent:latest
+#
+# Optional repo secret DOKPLOY_WEBHOOK_URL (Dokploy → compose → Deployments →
+# Webhook URL) redeploys the server once the new image is published.
+name: Build fork image
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "website/**"
+      - "**/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: build-image
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: github.repository != 'NousResearch/hermes-agent'
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    env:
+      WEBHOOK: ${{ secrets.DOKPLOY_WEBHOOK_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          docker system prune -af || true
+          df -h /
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image name
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ github.sha }}
+          build-args: |
+            HERMES_GIT_SHA=${{ github.sha }}
+            HERMES_BOT_DESKTOP=0
+          cache-from: type=gha,scope=fork-arm64
+          cache-to: type=gha,mode=max,scope=fork-arm64
+
+      - name: Redeploy on Dokploy
+        if: env.WEBHOOK != ''
+        run: curl -fsS -X POST "$WEBHOOK"

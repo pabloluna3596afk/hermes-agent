@@ -1,15 +1,14 @@
-# Dokploy deployment for our fork (upstream's docker-compose.yml uses host
-# networking and ~/.hermes, which don't fit Dokploy/Traefik). Kept in its own
-# file so upstream syncs never conflict with it.
+# Dokploy deployment for our fork. Pasted into Dokploy as a raw compose (same as
+# chatwoot): the image is built by .github/workflows/build-image.yml and the
+# server only pulls it. Kept in its own file so upstream syncs never conflict.
 #
 # One container: gateway + s6-supervised dashboard (HERMES_DASHBOARD=1).
 # The dashboard is reached through Traefik via a Dokploy domain on port 9119;
-# no ports are published on the host. Set the variables in Dokploy's
-# Environment tab (see DEPLOY-DOKPLOY.md).
+# no ports are published on the host. Variables go in Dokploy's Environment tab.
 services:
   hermes:
-    build: .
-    image: hermes-agent-fork
+    image: ghcr.io/pabloluna3596afk/hermes-agent:latest
+    pull_policy: always
     restart: unless-stopped
     volumes:
       - hermes-data:/opt/data
