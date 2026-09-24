@@ -5,14 +5,32 @@
 # One container: gateway + s6-supervised dashboard (HERMES_DASHBOARD=1).
 # The dashboard is reached through Traefik via a Dokploy domain on port 9119;
 # no ports are published on the host. Variables go in Dokploy's Environment tab.
+#
+# Only hermes-data is backed up (Dokploy volume backup). Re-downloadable
+# lazy-installed packages and caches live in their own volumes mounted over
+# it, so the daily backup carries just memory, sessions, config and keys.
 services:
+  cache-perms:
+    # New named volumes are root-owned; hermes runs as 10000.
+    image: alpine:3.20
+    command: ["sh", "-c", "chown -R 10000:10000 /lazy /cache"]
+    restart: "no"
+    volumes:
+      - hermes-lazy:/lazy
+      - hermes-cache:/cache
+
   hermes:
     image: ghcr.io/pabloluna3596afk/hermes-agent:latest
     pull_policy: always
     restart: unless-stopped
     mem_limit: 2560m # protect the other services on the shared VPS
+    depends_on:
+      cache-perms:
+        condition: service_completed_successfully
     volumes:
       - hermes-data:/opt/data
+      - hermes-lazy:/opt/data/lazy-packages
+      - hermes-cache:/opt/data/home/.cache
     environment:
       - HERMES_UID=10000
       - HERMES_GID=10000
@@ -32,3 +50,5 @@ services:
 
 volumes:
   hermes-data:
+  hermes-lazy:
+  hermes-cache:
