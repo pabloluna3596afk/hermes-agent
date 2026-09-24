@@ -13,11 +13,12 @@ services:
   cache-perms:
     # New named volumes are root-owned; hermes runs as 10000.
     image: alpine:3.20
-    command: ["sh", "-c", "chown -R 10000:10000 /lazy /cache"]
+    command: ["sh", "-c", "chown -R 10000:10000 /lazy /cache /xdg"]
     restart: "no"
     volumes:
       - hermes-lazy:/lazy
       - hermes-cache:/cache
+      - hermes-xdg-cache:/xdg
 
   hermes:
     image: ghcr.io/pabloluna3596afk/hermes-agent:latest
@@ -31,6 +32,7 @@ services:
       - hermes-data:/opt/data
       - hermes-lazy:/opt/data/lazy-packages
       - hermes-cache:/opt/data/home/.cache
+      - hermes-xdg-cache:/opt/data/.cache
     environment:
       - HERMES_UID=10000
       - HERMES_GID=10000
@@ -52,3 +54,4 @@ volumes:
   hermes-data:
   hermes-lazy:
   hermes-cache:
+  hermes-xdg-cache:
