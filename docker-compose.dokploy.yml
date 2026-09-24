@@ -10,6 +10,7 @@ services:
     image: ghcr.io/pabloluna3596afk/hermes-agent:latest
     pull_policy: always
     restart: unless-stopped
+    mem_limit: 2560m # protect the other services on the shared VPS
     volumes:
       - hermes-data:/opt/data
     environment:
