@@ -1,0 +1,34 @@
+# Dokploy deployment for our fork (upstream's docker-compose.yml uses host
+# networking and ~/.hermes, which don't fit Dokploy/Traefik). Kept in its own
+# file so upstream syncs never conflict with it.
+#
+# One container: gateway + s6-supervised dashboard (HERMES_DASHBOARD=1).
+# The dashboard is reached through Traefik via a Dokploy domain on port 9119;
+# no ports are published on the host. Set the variables in Dokploy's
+# Environment tab (see DEPLOY-DOKPLOY.md).
+services:
+  hermes:
+    build: .
+    image: hermes-agent-fork
+    restart: unless-stopped
+    volumes:
+      - hermes-data:/opt/data
+    environment:
+      - HERMES_UID=10000
+      - HERMES_GID=10000
+      - HERMES_DASHBOARD=1
+      - HERMES_DASHBOARD_HOST=0.0.0.0
+      - HERMES_DASHBOARD_PORT=9119
+      - HERMES_DASHBOARD_BASIC_AUTH_USERNAME=${HERMES_DASHBOARD_BASIC_AUTH_USERNAME}
+      - HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=${HERMES_DASHBOARD_BASIC_AUTH_PASSWORD}
+      - HERMES_DASHBOARD_BASIC_AUTH_SECRET=${HERMES_DASHBOARD_BASIC_AUTH_SECRET}
+      # Optional OpenAI-compatible API (port 8642). Only enable with a key.
+      # - API_SERVER_ENABLED=true
+      # - API_SERVER_HOST=0.0.0.0
+      # - API_SERVER_KEY=${API_SERVER_KEY}
+    expose:
+      - "9119"
+    command: ["gateway", "run"]
+
+volumes:
+  hermes-data:

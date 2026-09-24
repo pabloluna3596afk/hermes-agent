@@ -1,0 +1,77 @@
+# Fork-only: pulls NousResearch/hermes-agent main into a branch and opens a PR
+# against our main, so upstream updates are reviewed before they reach Dokploy.
+#
+# Requires repo secret SYNC_TOKEN: fine-grained PAT scoped to this repo with
+# Contents, Pull requests and Workflows = Read & write. GITHUB_TOKEN can't push
+# commits that touch .github/workflows, and upstream changes those often.
+name: Sync upstream
+
+on:
+  schedule:
+    - cron: "0 9 * * 1" # Mondays 09:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: github.repository != 'NousResearch/hermes-agent'
+    runs-on: ubuntu-latest
+    env:
+      UPSTREAM: https://github.com/NousResearch/hermes-agent.git
+      SYNC_BRANCH: sync/upstream
+      GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_TOKEN }}
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream "$UPSTREAM"
+          git fetch --no-tags upstream main
+          behind=$(git rev-list --count main..upstream/main)
+          echo "behind=$behind" >> "$GITHUB_ENV"
+          echo "main is $behind commit(s) behind upstream"
+
+      - name: Merge upstream into sync branch
+        if: env.behind != '0'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$SYNC_BRANCH" main
+          if git merge --no-edit upstream/main; then
+            echo "conflict=false" >> "$GITHUB_ENV"
+          else
+            # Push upstream as-is so the PR shows the conflict to resolve locally.
+            git merge --abort
+            git checkout -B "$SYNC_BRANCH" upstream/main
+            echo "conflict=true" >> "$GITHUB_ENV"
+          fi
+          git push --force origin "$SYNC_BRANCH"
+
+      - name: Open or update PR
+        if: env.behind != '0'
+        run: |
+          title="Sync upstream ($(date -u +%Y-%m-%d), ${behind} commits)"
+          body="Cambios nuevos de NousResearch/hermes-agent (${behind} commits)."
+          if [ "$conflict" = "true" ]; then
+            body="$body
+
+          ⚠️ Hay conflictos con nuestros cambios. Resolver en local:
+          \`git fetch upstream && git checkout main && git merge upstream/main\`"
+          fi
+          existing=$(gh pr list --head "$SYNC_BRANCH" --base main --state open --json number -q '.[0].number')
+          if [ -n "$existing" ]; then
+            gh pr edit "$existing" --title "$title" --body "$body"
+          else
+            gh pr create --head "$SYNC_BRANCH" --base main --title "$title" --body "$body"
+          fi
